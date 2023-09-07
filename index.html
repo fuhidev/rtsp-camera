@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document</title>
+ </head>
+ <body>
+  <video id="videoPlayer" controls autoplay></video>
+
+  <script>
+   // Kết nối đến máy chủ trung gian (Node.js server) để nhận dữ liệu video
+   const socket = new WebSocket("ws://http://localhost:8080");
+
+   // Xử lý sự kiện khi nhận dữ liệu video
+   socket.addEventListener("message", (event) => {
+    const videoData = event.data; // Dữ liệu video từ máy chủ trung gian
+    videoPlayer.srcObject = videoData;
+   });
+  </script>
+ </body>
+</html>
