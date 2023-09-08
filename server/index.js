@@ -2,6 +2,7 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const { exec, execSync } = require("child_process");
+const { removeSync } = require("fs-extra");
 
 const app = express();
 const port = 4000; // Chọn cổng mà bạn muốn sử dụng
@@ -59,44 +60,58 @@ app.get("/hls/:cameraId/:file", async (req, res) => {
   // Xây dựng đường dẫn đến tệp cameraId.m3u8
   const m3u8FilePath = path.join(m3u8FolderPath, file);
 
-  if (file === "index.m3u8") {
+  if (file === "index.m3u8" && !camera.running) {
    // Kiểm tra xem thư mục đã tồn tại hay chưa
-   if (!fs.existsSync(m3u8FolderPath)) {
+   if (fs.existsSync(m3u8FolderPath)) {
+    // Nếu tồn tại thì xóa
+    const files = fs.readdirSync(m3u8FolderPath);
+    files.forEach((file) => {
+     const filePath = path.join(m3u8FolderPath, file);
+     fs.unlinkSync(filePath);
+    });
+   } else {
     // Nếu thư mục không tồn tại, hãy tạo nó
     fs.mkdirSync(m3u8FolderPath, { recursive: true });
    }
 
    // Kiểm tra xem tệp đã tồn tại hay chưa
-   if (!fs.existsSync(m3u8FilePath) || !camera.running) {
-    const options = [
-     "-flags -global_header",
-     "-c:v",
-     "copy -y",
-     "-f hls",
-     "-hls_flags delete_segments ",
-     "-hls_time 5",
-     "-hls_list_size 3",
-    ];
-    const opts = options.join(" ");
-    // Nếu tệp không tồn tại, thực hiện lệnh ffmpeg để tạo nó
-    const ffmpegCommand = `
+   const options = [
+    "-fflags flush_packets",
+    "-flags -global_header",
+    "-c:v",
+    "copy",
+    "-f hls",
+    "-hls_flags delete_segments",
+    "-hls_time 5",
+    "-hls_list_size 3",
+    "-max_delay 5",
+   ];
+   const opts = options.join(" ");
+   // Nếu tệp không tồn tại, thực hiện lệnh ffmpeg để tạo nó
+   const ffmpegCommand = `
       ffmpeg -i "${camera.rtsp}" \
       ${opts} \
       -hls_segment_filename "./videos/ipcam/${cameraId}/segment%03d.ts" "./videos/ipcam/${cameraId}/index.m3u8"
     `;
-    // try {
-    exec(ffmpegCommand);
-    // } catch (error) {
-    //  console.error("Error executing ffmpeg command:", error);
-    //  res.status(400).send("Error executing ffmpeg command");
-    //  return;
-    // }
+   // try {
+   exec(ffmpegCommand);
+   // } catch (error) {
+   //  console.error("Error executing ffmpeg command:", error);
+   //  res.status(400).send("Error executing ffmpeg command");
+   //  return;
+   // }
 
-    camera.running = true;
-    await delay();
-   }
+   camera.running = true;
   }
-  // Nếu tệp đã tồn tại, đọc nó và gửi trong response
+
+  let hasM3u8File = false;
+  // Chờ cho đến khi tìm thấy file
+  while (!hasM3u8File) {
+   try {
+    fs.accessSync(m3u8FilePath, fs.constants.F_OK);
+    hasM3u8File = true;
+   } catch (error) {}
+  }
   const m3u8Content = fs.readFileSync(m3u8FilePath);
   res.end(m3u8Content, "utf8");
  } catch (readError) {
@@ -113,6 +128,6 @@ function delay() {
  return new Promise((resolve) => {
   setTimeout(() => {
    resolve();
-  }, 5000);
+  }, 10000);
  });
 }
