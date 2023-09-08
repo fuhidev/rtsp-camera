@@ -68,11 +68,21 @@ app.get("/hls/:cameraId/:file", async (req, res) => {
 
    // Kiểm tra xem tệp đã tồn tại hay chưa
    if (!fs.existsSync(m3u8FilePath) || !camera.running) {
+    const options = [
+     "-flags -global_header",
+     "-c:v",
+     "copy -y",
+     "-f hls",
+     "-hls_flags delete_segments ",
+     "-hls_time 5",
+     "-hls_list_size 3",
+    ];
+    const opts = options.join(" ");
     // Nếu tệp không tồn tại, thực hiện lệnh ffmpeg để tạo nó
     const ffmpegCommand = `
       ffmpeg -i "${camera.rtsp}" \
-      -c:v copy -c:a aac -f hls -hls_flags delete_segments -hls_time 2 \
-      -hls_list_size 5 -hls_segment_filename "./videos/ipcam/${cameraId}/segment%03d.ts" "./videos/ipcam/${cameraId}/index.m3u8"
+      ${opts} \
+      -hls_segment_filename "./videos/ipcam/${cameraId}/segment%03d.ts" "./videos/ipcam/${cameraId}/index.m3u8"
     `;
     // try {
     exec(ffmpegCommand);
